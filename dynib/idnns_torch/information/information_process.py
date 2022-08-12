@@ -10,19 +10,20 @@ import numpy as np
 #import tensorflow as tf
 import dynib.idnns.information.information_utilities as inf_ut
 from dynib.idnns.information.mutual_info_estimation import calc_varitional_information
+import torch
 warnings.filterwarnings("ignore")
 NUM_CORES = multiprocessing.cpu_count()
 
 
 def calc_information_for_layer(data, bins, unique_inverse_x, unique_inverse_y, pxs, pys1):
-    bins = bins.astype(np.float32)
-    digitized = bins[np.digitize(np.squeeze(data.reshape(1, -1)), bins) - 1].reshape(len(data), -1)
-    b2 = np.ascontiguousarray(digitized).view(
-        np.dtype((np.void, digitized.dtype.itemsize * digitized.shape[1])))
+    bins = bins.astype(torch.float32)
+    digitized = bins[torch.bucketize(torch.squeeze(data.reshape(1, -1)), bins) - 1].reshape(len(data), -1)
+    b2 = torch.ascontiguousarray(digitized).view(
+        torch.dtype((torch.void, digitized.dtype.itemsize * digitized.shape[1])))
     unique_array, unique_inverse_t, unique_counts = \
-        np.unique(b2, return_index=False, return_inverse=True, return_counts=True)
+        torch.unique(b2, return_index=False, return_inverse=True, return_counts=True)
     p_ts = unique_counts / float(sum(unique_counts))
-    PXs, PYs = np.asarray(pxs).T, np.asarray(pys1).T
+    PXs, PYs = torch.asarray(pxs).T, np.asarray(pys1).T
     local_IXT, local_ITY = calc_information_from_mat(PXs, PYs, p_ts, digitized, unique_inverse_x, unique_inverse_y,
                                                      unique_array)
     return local_IXT, local_ITY
@@ -30,12 +31,12 @@ def calc_information_for_layer(data, bins, unique_inverse_x, unique_inverse_y, p
 
 def calc_information_sampling(data, bins, pys1, pxs, label, b, b1, len_unique_a, p_YgX, unique_inverse_x,
                               unique_inverse_y, calc_DKL=False):
-    bins = bins.astype(np.float32)
+    bins = bins.astype(torch.float32)
     num_of_bins = bins.shape[0]
     # bins = stats.mstats.mquantiles(np.squeeze(data.reshape(1, -1)), np.linspace(0,1, num=num_of_bins))
     # hist, bin_edges = np.histogram(np.squeeze(data.reshape(1, -1)), normed=True)
-    digitized = bins[np.digitize(np.squeeze(data.reshape(1, -1)), bins) - 1].reshape(len(data), -1)
-    b2 = np.ascontiguousarray(digitized).view(
+    digitized = bins[torch.bucketize(torch.squeeze(data.reshape(1, -1)), bins) - 1].reshape(len(data), -1)
+    b2 = torch.ascontiguousarray(digitized).view(
         np.dtype((np.void, digitized.dtype.itemsize * digitized.shape[1])))
     unique_array, unique_inverse_t, unique_counts = \
         np.unique(b2, return_index=False, return_inverse=True, return_counts=True)

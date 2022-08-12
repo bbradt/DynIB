@@ -7,6 +7,7 @@ from dynib.ibrunner import IBRunner
 from sklearn.model_selection import KFold
 from torch.utils.data import Subset, DataLoader
 import argparse
+import shutil
 import torch.nn as nn
 import torch
 from catalyst import dl
@@ -14,6 +15,8 @@ import torch.optim.lr_scheduler as lrs
 import torch.optim as opt
 import torchvision.datasets as td
 import torchvision.transforms as tft
+from dynib.ibhook import IBHook
+from dynib.callbacks.batch_checkpoint_callback import BatchCheckpointCallback
 
 DEFAULTS = dict(
 kf = 10,
@@ -21,10 +24,10 @@ k = 0,
 criterion = 'CrossEntropyLoss',
 scheduler = 'ExponentialLR',
 optim = 'Adam',
-num_epochs = 100,
+num_epochs = 10,
 lr = 1e-6,
 logdir = "./tests/mnist",
-model_kwargs = '{"hidden_layers": [500,400,300,200,100]}',
+model_kwargs = '{"hidden_layers": [4096,2048,1024,512,256,128,64,32,16]}',
 model_args = '[dataset[0][0].shape, 10]',
 model = "mlp",
 dataset = "mnist",
@@ -66,7 +69,7 @@ args.criterion = eval("nn." + args.criterion)
 # Model
 if args.model.lower() == "mlp":
     model = MLP(*args.model_args, flatten=True, **args.model_kwargs)
-
+hook = IBHook(model)
 # Criterion
 criterion = args.criterion()
 optimizer = args.optim(model.parameters(), lr=args.lr)
@@ -75,14 +78,18 @@ scheduler = args.scheduler(optimizer, gamma=0.9)
 callbacks = {
     "auc": dl.AUCCallback(input_key="logits", target_key="targets"),
     "precision":  dl.PrecisionRecallF1SupportCallback(input_key="logits", target_key="targets"),
-    "callback": dl.CheckpointCallback(os.path.join(args.logdir, "checkpoints"), loader_key="train", metric_key="auc", topk=100),
+    #"callback": dl.CheckpointCallback(os.path.join(args.logdir, "checkpoints"), loader_key="train", metric_key="auc", topk=100),
+    "callback": BatchCheckpointCallback(os.path.join(args.logdir, "checkpoints"), loader_key="train", metric_key="auc"),
     "accuracy": dl.AccuracyCallback(input_key="logits", target_key="targets")
 }
 
-runner = IBRunner(
-    model=model
-)
+#runner = IBRunner(
+#    model=model
+#)
+runner = dl.SupervisedRunner(input_key="logits", target_key="targets")
 
+if os.path.exists(args.logdir):
+    shutil.rmtree(args.logdir)
 
 runner.train(
     model=model,

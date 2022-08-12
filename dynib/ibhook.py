@@ -3,14 +3,18 @@ import torch.nn as nn
 from pyitlib import discrete_random_variable as drv
 from dynib.estimators.TishbyEstimator import TishbyEstimator
 from dynib.estimators.NpeetEstimator import NpeetEstimator
+from dynib.estimators.TorchEstimator import TorchEstimator
 
 class IBHook:
-    def __init__(self, model, estimator="npeet"):
+    def __init__(self, model, estimator="npeet", sigma=0.4, num_bins=256):
         model.hook = self
+        #self.estimator = TorchEstimator(normalize=False, device="cuda" if torch.cuda.is_available() else "cpu", num_bins=num_bins, sigma=sigma)
+        
         if estimator == "tishby":
             self.estimator = TishbyEstimator()
         elif estimator == "npeet":
             self.estimator = NpeetEstimator(normalize=True)
+        
         self.register_all(model)
         self.clear()
 
@@ -41,9 +45,9 @@ class IBHook:
             self.layers.append(module._order)
 
     def forward_hook(self, module, input, output):
-        self.input_activations[module._order] = input[0].detach().cpu().numpy()
-        self.output_activations[module._order] = output.detach().cpu().numpy()
-        self.XH[module._order], self.HY[module._order] = self.estimator.compute(0, self.output_activations[module._order], self.input, self.output)
+        self.input_activations[module._order] = input[0]#.detach().cpu().numpy()
+        self.output_activations[module._order] = output#.detach().cpu().numpy()
+        #self.XH[module._order], self.HY[module._order] = self.estimator.compute(0, self.output_activations[module._order], self.input, self.output)
         #self.XH[module._order] = self.estimator.compute()
         #self.HY[module._order] = #ee.mi(self.output_activations[module._order], self.output)
             
