@@ -28,7 +28,7 @@ num_epochs = 10,
 lr = 1e-6,
 logdir = "./tests/mnist",
 model_kwargs = '{"hidden_layers": [4096,2048,1024,512,256,128,64,32,16]}',
-model_args = '[dataset[0][0].shape, 10]',
+model_args = '[dataset[0][0].shape, num_classes]',
 model = "mlp",
 dataset = "mnist",
 seed = 0,
@@ -42,8 +42,19 @@ args = parser.parse_args()
 # Data loading
 if '.mat' in args.dataset:
     dataset = MatDataset(os.path.join("./data", args.dataset))
+    num_classes = 2
 elif "mnist" == args.dataset:
     dataset = td.MNIST("./data", train=True, download=True, transform=tft.Compose([tft.ToTensor(), tft.Lambda(lambda x: torch.flatten(x))]))
+    num_classes = 10
+elif "fmnist" == args.dataset:
+    dataset = td.FashionMNIST("./data", train=True, download=True, transform=tft.Compose([tft.ToTensor(), tft.Lambda(lambda x: torch.flatten(x))]))
+    num_classes = 10
+elif "emnist" == args.dataset:
+    dataset = td.EMNIST("./data", "letters", train=True, download=True, transform=tft.Compose([tft.ToTensor(), tft.Lambda(lambda x: torch.flatten(x))]))
+    num_classes = 26
+elif "kmnist" == args.dataset:
+    dataset = td.KMNIST("./data", train=True, download=True, transform=tft.Compose([tft.ToTensor(), tft.Lambda(lambda x: torch.flatten(x))]))
+    num_classes = 10
 data_idx = np.arange(len(dataset))
 kf = KFold(n_splits=args.kf, random_state=args.seed, shuffle=True)
 for ki, (train_idx, valid_idx) in enumerate(kf.split(data_idx)):
@@ -75,22 +86,24 @@ criterion = args.criterion()
 optimizer = args.optim(model.parameters(), lr=args.lr)
 scheduler = args.scheduler(optimizer, gamma=0.9)
 # Callbacks
+
 callbacks = {
     "auc": dl.AUCCallback(input_key="logits", target_key="targets"),
     "precision":  dl.PrecisionRecallF1SupportCallback(input_key="logits", target_key="targets"),
-    #"callback": dl.CheckpointCallback(os.path.join(args.logdir, "checkpoints"), loader_key="train", metric_key="auc", topk=100),
-    "callback": BatchCheckpointCallback(os.path.join(args.logdir, "checkpoints"), loader_key="train", metric_key="auc"),
-    "accuracy": dl.AccuracyCallback(input_key="logits", target_key="targets")
+    "callback": dl.CheckpointCallback(os.path.join(args.logdir, "checkpoints"), loader_key="train", metric_key="auc", topk=100),
+    #"callback": BatchCheckpointCallback(os.path.join(args.logdir, "checkpoints"), loader_key="train", metric_key="auc"),
+    "accuracy": dl.AccuracyCallback(input_key="logits", target_key="targets"),
+    #"criterion": dl.CriterionCallback(input_key="logits", target_key="targets", criterion_key="loss", metric_key="loss")
 }
 
 #runner = IBRunner(
 #    model=model
 #)
-runner = dl.SupervisedRunner(input_key="logits", target_key="targets")
+runner = dl.SupervisedRunner(input_key="logits", output_key="logits", target_key="targets", loss_key="loss")
 
 if os.path.exists(args.logdir):
     shutil.rmtree(args.logdir)
-
+os.makedirs(os.path.join(args.logdir, "checkpoints"), exist_ok=True)
 runner.train(
     model=model,
     loaders=loaders,
